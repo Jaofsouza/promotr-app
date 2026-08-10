@@ -9,8 +9,8 @@ type Product = {
 };
 type TasteEntry = { checked: boolean; qty: number; flavor: string };
 type CustomItem = { name: string; qty: string };
-type ReportRow = { id: string; local: string; data: string };
 type AgendaRow = { id: string; data: string; local: string; horaIni: string; horaFim: string; observacao?: string | null };
+type SessionInfo = { name: string; role?: string; userId?: string; username?: string };
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -49,7 +49,7 @@ export default function PromotorHome() {
           Minha agenda
         </div>
       </div>
-      {tab === 'relatorio' ? <ReportForm /> : <MyAgenda />}
+      {tab === 'relatorio' ? <ReportForm session={session as SessionInfo} /> : <MyAgenda />}
     </div>
   );
 }
@@ -104,16 +104,18 @@ function MyAgenda() {
   );
 }
 
-function ReportForm() {
+function ReportForm({ session }: { session: SessionInfo }) {
   const [degustacaoProducts, setDegustacaoProducts] = useState<Product[]>([]);
   const [vendaProducts, setVendaProducts] = useState<Product[]>([]);
   const [taste, setTaste] = useState<Record<string, TasteEntry>>({});
   const [saleQty, setSaleQty] = useState<Record<string, Record<string, number>>>({});
   const [customItems, setCustomItems] = useState<CustomItem[]>([]);
   const [customSales, setCustomSales] = useState<CustomItem[]>([]);
-  const [recentLocals, setRecentLocals] = useState<string[]>([]);
 
-  const [promotorNome, setPromotorNome] = useState('');
+  // Agenda: mapa dia -> lista de degustações agendadas naquele dia
+  const [agendaByDay, setAgendaByDay] = useState<Record<string, AgendaRow[]>>({});
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+
   const [local, setLocal] = useState('');
   const [data, setData] = useState(todayISO());
   const [horaIni, setHoraIni] = useState('');
@@ -142,19 +144,51 @@ function ReportForm() {
     Promise.all([
       fetch('/api/products?category=DEGUSTACAO').then((r) => r.json()),
       fetch('/api/products?category=VENDA').then((r) => r.json()),
-      fetch('/api/reports').then((r) => (r.ok ? r.json() : [])),
-    ]).then(([deg, venda, reports]) => {
+      fetch('/api/agenda').then((r) => (r.ok ? r.json() : [])),
+    ]).then(([deg, venda, agenda]) => {
       setDegustacaoProducts(deg);
       setVendaProducts(venda);
       resetTaste(deg);
-      const locals: string[] = [];
-      (reports || []).forEach((r: ReportRow) => {
-        if (r.local && !locals.includes(r.local)) locals.push(r.local);
+      const map: Record<string, AgendaRow[]> = {};
+      (agenda || []).forEach((it: AgendaRow) => {
+        const key = it.data.slice(0, 10);
+        if (!map[key]) map[key] = [];
+        map[key].push(it);
       });
-      setRecentLocals(locals.slice(0, 8));
+      setAgendaByDay(map);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const daySlots = agendaByDay[data] || [];
+
+  function selectSlot(s: AgendaRow) {
+    setSelectedSlotId(s.id);
+    setLocal(s.local);
+    setHoraIni(s.horaIni);
+    setHoraFim(s.horaFim);
+    setPicoTouched(false);
+  }
+
+  // Ao trocar o dia: se houver exatamente uma degustação agendada, já preenche.
+  // Se houver mais de uma, limpa e espera o promotor escolher. Se não houver, bloqueia.
+  useEffect(() => {
+    const slots = agendaByDay[data] || [];
+    if (slots.length === 1) {
+      const s = slots[0];
+      setSelectedSlotId(s.id);
+      setLocal(s.local);
+      setHoraIni(s.horaIni);
+      setHoraFim(s.horaFim);
+      setPicoTouched(false);
+    } else {
+      setSelectedSlotId(null);
+      setLocal('');
+      setHoraIni('');
+      setHoraFim('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, agendaByDay]);
 
   useEffect(() => {
     if (!picoTouched) {
@@ -180,6 +214,8 @@ function ReportForm() {
     () => [...degustacaoProducts, ...vendaProducts],
     [degustacaoProducts, vendaProducts]
   );
+
+  const canGenerate = !!selectedSlotId;
 
   function buildReportData() {
     const degustacaoLines: string[] = [];
@@ -216,7 +252,7 @@ function ReportForm() {
       .trim();
 
     const text =
-`*Promotor:* ${promotorNome} 
+`*Promotor:* ${session.name} 
 
 *Local/Data:* ${localLine}
 
@@ -247,12 +283,10 @@ ${vendasLines.join('\n')}`;
   }
 
   function handleGenerate() {
+    if (!canGenerate) return;
     const { text } = buildReportData();
     setReportText(text);
     setShowOutput(true);
-    if (local && !recentLocals.includes(local)) {
-      setRecentLocals((prev) => [local, ...prev].slice(0, 8));
-    }
   }
 
   async function persistAndReset() {
@@ -316,36 +350,61 @@ ${vendasLines.join('\n')}`;
     <div>
       <div className="section">
         <h2>Promotor &amp; Local</h2>
-        <label className="field">
+
+        <div className="field">
           <span className="lbl">Promotor</span>
-          <input type="text" value={promotorNome} onChange={(e) => setPromotorNome(e.target.value)} placeholder="Nome do promotor" />
-        </label>
+          <div style={{ padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card-2)', fontWeight: 500 }}>
+            {session.name}
+          </div>
+        </div>
+
         <label className="field">
-          <span className="lbl">Local</span>
-          <input type="text" value={local} onChange={(e) => setLocal(e.target.value)} placeholder="ex: Bigbox Lago Sul" list="localList" />
-          <datalist id="localList">
-            {recentLocals.map((l) => <option key={l} value={l} />)}
-          </datalist>
+          <span className="lbl">Data da degustação</span>
+          <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
         </label>
-        {recentLocals.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-            {recentLocals.map((l) => (
-              <div key={l} className="pill" style={{ cursor: 'pointer' }} onClick={() => setLocal(l)}>{l}</div>
-            ))}
+
+        {daySlots.length === 0 && (
+          <div className="hint" style={{ marginTop: 4 }}>
+            Nenhuma degustação agendada nesse dia. Se estiver correto, peça ao gestor para incluir na sua agenda.
           </div>
         )}
-        <div className="row3" style={{ marginTop: 12 }}>
-          <label className="field" style={{ marginBottom: 0 }}>
-            <span className="lbl">Data</span>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
-          </label>
+
+        {daySlots.length > 1 && (
+          <div style={{ marginBottom: 6 }}>
+            <span className="lbl">Escolha a degustação do dia</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+              {daySlots.map((s) => (
+                <div
+                  key={s.id}
+                  onClick={() => selectSlot(s)}
+                  style={{
+                    cursor: 'pointer', padding: '10px 12px', borderRadius: 8,
+                    border: '1px solid var(--line)',
+                    background: selectedSlotId === s.id ? 'var(--red)' : 'var(--card-2)',
+                    color: selectedSlotId === s.id ? '#fff' : 'var(--text)',
+                  }}
+                >
+                  <div style={{ fontWeight: 500 }}>{s.local}</div>
+                  <div style={{ fontSize: 12.5, opacity: 0.85 }}>{s.horaIni} às {s.horaFim}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <label className="field">
+          <span className="lbl">Local (definido pela agenda)</span>
+          <input type="text" value={local} disabled placeholder="Selecione um dia agendado" />
+        </label>
+
+        <div className="row2">
           <label className="field" style={{ marginBottom: 0 }}>
             <span className="lbl">Início</span>
-            <input type="time" value={horaIni} onChange={(e) => setHoraIni(e.target.value)} />
+            <input type="time" value={horaIni} disabled />
           </label>
           <label className="field" style={{ marginBottom: 0 }}>
             <span className="lbl">Fim</span>
-            <input type="time" value={horaFim} onChange={(e) => setHoraFim(e.target.value)} />
+            <input type="time" value={horaFim} disabled />
           </label>
         </div>
       </div>
@@ -493,7 +552,14 @@ ${vendasLines.join('\n')}`;
         </button>
       </div>
 
-      <button className="btn full" style={{ marginBottom: 18 }} onClick={handleGenerate}>Gerar relatório</button>
+      <button className="btn full" style={{ marginBottom: 6 }} onClick={handleGenerate} disabled={!canGenerate}>
+        Gerar relatório
+      </button>
+      {!canGenerate && (
+        <div className="hint" style={{ marginBottom: 18 }}>
+          Selecione um dia com degustação agendada para gerar o relatório.
+        </div>
+      )}
 
       {showOutput && (
         <div>
