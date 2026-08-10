@@ -10,6 +10,7 @@ type Product = {
 type TasteEntry = { checked: boolean; qty: number; flavor: string };
 type CustomItem = { name: string; qty: string };
 type AgendaRow = { id: string; data: string; local: string; horaIni: string; horaFim: string; observacao?: string | null };
+type ReportRow = { local?: string; data?: string };
 type SessionInfo = { name: string; role?: string; userId?: string; username?: string };
 
 function todayISO() {
@@ -30,38 +31,54 @@ function suggestPeak(ini: string, fim: string) {
   if (span >= 6) return '15:00 às 16:00';
   return `${Math.max(h1, h2 - 1)}:00 às ${h2}:00`;
 }
+function reportedKey(date: string, local: string) {
+  return `${date}|${(local || '').trim().toLowerCase()}`;
+}
 const WEEKDAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 export default function PromotorHome() {
   const { session, loading } = useRequireAuth('PROMOTOR');
-  const [tab, setTab] = useState<'relatorio' | 'agenda'>('relatorio');
+  const [selected, setSelected] = useState<AgendaRow | null>(null);
 
   if (loading || !session) return <div className="wrap">Carregando...</div>;
 
   return (
     <div className="wrap">
       <TopHeader session={session} title="Degustações" />
-      <div className="tabs">
-        <div className={`tab ${tab === 'relatorio' ? 'active' : ''}`} onClick={() => setTab('relatorio')}>
-          Novo relatório
-        </div>
-        <div className={`tab ${tab === 'agenda' ? 'active' : ''}`} onClick={() => setTab('agenda')}>
-          Minha agenda
-        </div>
-      </div>
-      {tab === 'relatorio' ? <ReportForm session={session as SessionInfo} /> : <MyAgenda />}
+      {selected ? (
+        <ReportForm
+          session={session as SessionInfo}
+          slot={selected}
+          onBack={() => setSelected(null)}
+          onDone={() => setSelected(null)}
+        />
+      ) : (
+        <AgendaList onPick={(slot) => setSelected(slot)} />
+      )}
     </div>
   );
 }
 
-function MyAgenda() {
+function AgendaList({ onPick }: { onPick: (slot: AgendaRow) => void }) {
   const [items, setItems] = useState<AgendaRow[]>([]);
+  const [reportedKeys, setReportedKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/agenda')
-      .then((r) => r.json())
-      .then((data) => setItems(Array.isArray(data) ? data : []))
+    Promise.all([
+      fetch('/api/agenda').then((r) => (r.ok ? r.json() : [])),
+      fetch('/api/reports').then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([agenda, reports]) => {
+        setItems(Array.isArray(agenda) ? agenda : []);
+        const keys = new Set<string>();
+        (reports || []).forEach((r: ReportRow) => {
+          if (r && r.data && r.local) {
+            keys.add(reportedKey(String(r.data).slice(0, 10), r.local));
+          }
+        });
+        setReportedKeys(keys);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -78,24 +95,40 @@ function MyAgenda() {
     byDay[key].push(it);
   });
   const sortedDays = Object.keys(byDay).sort();
+  const today = todayISO();
 
   return (
     <div className="section">
-      <h2>Sua agenda</h2>
+      <h2>Minha agenda</h2>
+      <div className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+        Toque na degustação para gerar o relatório dela.
+      </div>
       <div className="week-grid">
         {sortedDays.map((day) => {
           const d = new Date(day + 'T00:00:00');
-          const label = `${WEEKDAYS[d.getDay()].slice(0, 3)} ${formatDateBR(day)}`;
+          const isToday = day === today;
+          const label = `${WEEKDAYS[d.getDay()].slice(0, 3)} ${formatDateBR(day)}${isToday ? ' • Hoje' : ''}`;
           return (
-            <div className="day-card" key={day}>
+            <div className="day-card" key={day} style={isToday ? { borderColor: 'var(--red)' } : undefined}>
               <div className="day-label">{label}</div>
-              {byDay[day].map((slot) => (
-                <div className="slot" key={slot.id}>
-                  <div className="slot-time">{slot.horaIni} às {slot.horaFim}</div>
-                  <div>{slot.local}</div>
-                  {slot.observacao && <div className="hint">{slot.observacao}</div>}
-                </div>
-              ))}
+              {byDay[day].map((slot) => {
+                const reported = reportedKeys.has(reportedKey(day, slot.local));
+                return (
+                  <div
+                    className="slot"
+                    key={slot.id}
+                    onClick={() => onPick(slot)}
+                    style={{ cursor: 'pointer', opacity: reported ? 0.6 : 1 }}
+                  >
+                    <div className="slot-time">
+                      {slot.horaIni} às {slot.horaFim}
+                      {reported && <span style={{ color: 'var(--green)', marginLeft: 8 }}>✓ relatado</span>}
+                    </div>
+                    <div>{slot.local}</div>
+                    {slot.observacao && <div className="hint">{slot.observacao}</div>}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -104,7 +137,15 @@ function MyAgenda() {
   );
 }
 
-function ReportForm({ session }: { session: SessionInfo }) {
+function ReportForm({ session, slot, onBack, onDone }: {
+  session: SessionInfo; slot: AgendaRow; onBack: () => void; onDone: () => void;
+}) {
+  // Dados do dia — fixos, vindos da agenda (o promotor não edita)
+  const local = slot.local;
+  const data = slot.data.slice(0, 10);
+  const horaIni = slot.horaIni;
+  const horaFim = slot.horaFim;
+
   const [degustacaoProducts, setDegustacaoProducts] = useState<Product[]>([]);
   const [vendaProducts, setVendaProducts] = useState<Product[]>([]);
   const [taste, setTaste] = useState<Record<string, TasteEntry>>({});
@@ -112,25 +153,17 @@ function ReportForm({ session }: { session: SessionInfo }) {
   const [customItems, setCustomItems] = useState<CustomItem[]>([]);
   const [customSales, setCustomSales] = useState<CustomItem[]>([]);
 
-  // Agenda: mapa dia -> lista de degustações agendadas naquele dia
-  const [agendaByDay, setAgendaByDay] = useState<Record<string, AgendaRow[]>>({});
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-
-  const [local, setLocal] = useState('');
-  const [data, setData] = useState(todayISO());
-  const [horaIni, setHoraIni] = useState('');
-  const [horaFim, setHoraFim] = useState('');
   const [movimento, setMovimento] = useState('médio');
   const [aceitacao, setAceitacao] = useState('média');
   const [publicoDia, setPublicoDia] = useState('Adultos');
   const [publicoAtingido, setPublicoAtingido] = useState('Adultos');
-  const [horarioPico, setHorarioPico] = useState('');
-  const [picoTouched, setPicoTouched] = useState(false);
+  const [horarioPico, setHorarioPico] = useState(() => suggestPeak(slot.horaIni, slot.horaFim));
 
   const [reportText, setReportText] = useState('');
   const [showOutput, setShowOutput] = useState(false);
   const [copyLabel, setCopyLabel] = useState('Copiar texto');
   const [saving, setSaving] = useState(false);
+  const [sent, setSent] = useState(false);
 
   function resetTaste(products: Product[]) {
     const t: Record<string, TasteEntry> = {};
@@ -144,59 +177,13 @@ function ReportForm({ session }: { session: SessionInfo }) {
     Promise.all([
       fetch('/api/products?category=DEGUSTACAO').then((r) => r.json()),
       fetch('/api/products?category=VENDA').then((r) => r.json()),
-      fetch('/api/agenda').then((r) => (r.ok ? r.json() : [])),
-    ]).then(([deg, venda, agenda]) => {
+    ]).then(([deg, venda]) => {
       setDegustacaoProducts(deg);
       setVendaProducts(venda);
       resetTaste(deg);
-      const map: Record<string, AgendaRow[]> = {};
-      (agenda || []).forEach((it: AgendaRow) => {
-        const key = it.data.slice(0, 10);
-        if (!map[key]) map[key] = [];
-        map[key].push(it);
-      });
-      setAgendaByDay(map);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const daySlots = agendaByDay[data] || [];
-
-  function selectSlot(s: AgendaRow) {
-    setSelectedSlotId(s.id);
-    setLocal(s.local);
-    setHoraIni(s.horaIni);
-    setHoraFim(s.horaFim);
-    setPicoTouched(false);
-  }
-
-  // Ao trocar o dia: se houver exatamente uma degustação agendada, já preenche.
-  // Se houver mais de uma, limpa e espera o promotor escolher. Se não houver, bloqueia.
-  useEffect(() => {
-    const slots = agendaByDay[data] || [];
-    if (slots.length === 1) {
-      const s = slots[0];
-      setSelectedSlotId(s.id);
-      setLocal(s.local);
-      setHoraIni(s.horaIni);
-      setHoraFim(s.horaFim);
-      setPicoTouched(false);
-    } else {
-      setSelectedSlotId(null);
-      setLocal('');
-      setHoraIni('');
-      setHoraFim('');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, agendaByDay]);
-
-  useEffect(() => {
-    if (!picoTouched) {
-      const s = suggestPeak(horaIni, horaFim);
-      if (s) setHorarioPico(s);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [horaIni, horaFim]);
 
   function updateTaste(id: string, patch: Partial<TasteEntry>) {
     setTaste((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -214,8 +201,6 @@ function ReportForm({ session }: { session: SessionInfo }) {
     () => [...degustacaoProducts, ...vendaProducts],
     [degustacaoProducts, vendaProducts]
   );
-
-  const canGenerate = !!selectedSlotId;
 
   function buildReportData() {
     const degustacaoLines: string[] = [];
@@ -277,19 +262,16 @@ ${materialLines.join('\n')}
 *Vendas*
 ${vendasLines.join('\n')}`;
 
-    return {
-      text, degustacaoLines, materialLines, vendasLines,
-    };
+    return { text, degustacaoLines, materialLines, vendasLines };
   }
 
   function handleGenerate() {
-    if (!canGenerate) return;
     const { text } = buildReportData();
     setReportText(text);
     setShowOutput(true);
   }
 
-  async function persistAndReset() {
+  async function persist() {
     setSaving(true);
     const { text, degustacaoLines, materialLines, vendasLines } = buildReportData();
     try {
@@ -307,11 +289,7 @@ ${vendasLines.join('\n')}`;
       // se falhar o salvamento, o texto já foi copiado/enviado — não bloqueia o fluxo
     }
     setSaving(false);
-    resetTaste(degustacaoProducts);
-    setCustomItems([]);
-    setSaleQty({});
-    setCustomSales((prev) => prev.map((cs) => ({ ...cs, qty: '' })));
-    setPicoTouched(false);
+    setSent(true);
   }
 
   async function handleCopy() {
@@ -322,7 +300,7 @@ ${vendasLines.join('\n')}`;
     }
     setCopyLabel('Copiado!');
     setTimeout(() => setCopyLabel('Copiar texto'), 1800);
-    await persistAndReset();
+    await persist();
   }
 
   async function handleShare() {
@@ -331,7 +309,7 @@ ${vendasLines.join('\n')}`;
       try {
         // @ts-ignore
         await navigator.share({ text: reportText });
-        await persistAndReset();
+        await persist();
         return;
       } catch {
         /* usuário cancelou — cai no fallback abaixo */
@@ -343,69 +321,22 @@ ${vendasLines.join('\n')}`;
     } catch {
       alert('Copie o texto manualmente e cole no WhatsApp.');
     }
-    await persistAndReset();
+    await persist();
   }
 
   return (
     <div>
       <div className="section">
-        <h2>Promotor &amp; Local</h2>
-
-        <div className="field">
+        <button className="btn secondary small" onClick={onBack} style={{ marginBottom: 12 }}>‹ Agenda</button>
+        <h2 style={{ marginBottom: 2 }}>{local}</h2>
+        <div className="hint" style={{ marginTop: 0 }}>
+          {formatDateBR(data)} • {horaIni} às {horaFim}
+        </div>
+        <div className="field" style={{ marginTop: 12, marginBottom: 0 }}>
           <span className="lbl">Promotor</span>
           <div style={{ padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--card-2)', fontWeight: 500 }}>
             {session.name}
           </div>
-        </div>
-
-        <label className="field">
-          <span className="lbl">Data da degustação</span>
-          <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
-        </label>
-
-        {daySlots.length === 0 && (
-          <div className="hint" style={{ marginTop: 4 }}>
-            Nenhuma degustação agendada nesse dia. Se estiver correto, peça ao gestor para incluir na sua agenda.
-          </div>
-        )}
-
-        {daySlots.length > 1 && (
-          <div style={{ marginBottom: 6 }}>
-            <span className="lbl">Escolha a degustação do dia</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
-              {daySlots.map((s) => (
-                <div
-                  key={s.id}
-                  onClick={() => selectSlot(s)}
-                  style={{
-                    cursor: 'pointer', padding: '10px 12px', borderRadius: 8,
-                    border: '1px solid var(--line)',
-                    background: selectedSlotId === s.id ? 'var(--red)' : 'var(--card-2)',
-                    color: selectedSlotId === s.id ? '#fff' : 'var(--text)',
-                  }}
-                >
-                  <div style={{ fontWeight: 500 }}>{s.local}</div>
-                  <div style={{ fontSize: 12.5, opacity: 0.85 }}>{s.horaIni} às {s.horaFim}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <label className="field">
-          <span className="lbl">Local (definido pela agenda)</span>
-          <input type="text" value={local} disabled placeholder="Selecione um dia agendado" />
-        </label>
-
-        <div className="row2">
-          <label className="field" style={{ marginBottom: 0 }}>
-            <span className="lbl">Início</span>
-            <input type="time" value={horaIni} disabled />
-          </label>
-          <label className="field" style={{ marginBottom: 0 }}>
-            <span className="lbl">Fim</span>
-            <input type="time" value={horaFim} disabled />
-          </label>
         </div>
       </div>
 
@@ -497,7 +428,7 @@ ${vendasLines.join('\n')}`;
         </div>
         <label className="field">
           <span className="lbl">Horário de pico</span>
-          <input type="text" value={horarioPico} onChange={(e) => { setPicoTouched(true); setHorarioPico(e.target.value); }} placeholder="ex: 12:00 às 13:00" />
+          <input type="text" value={horarioPico} onChange={(e) => setHorarioPico(e.target.value)} placeholder="ex: 12:00 às 13:00" />
         </label>
       </div>
 
@@ -552,14 +483,7 @@ ${vendasLines.join('\n')}`;
         </button>
       </div>
 
-      <button className="btn full" style={{ marginBottom: 6 }} onClick={handleGenerate} disabled={!canGenerate}>
-        Gerar relatório
-      </button>
-      {!canGenerate && (
-        <div className="hint" style={{ marginBottom: 18 }}>
-          Selecione um dia com degustação agendada para gerar o relatório.
-        </div>
-      )}
+      <button className="btn full" style={{ marginBottom: 18 }} onClick={handleGenerate}>Gerar relatório</button>
 
       {showOutput && (
         <div>
@@ -569,6 +493,12 @@ ${vendasLines.join('\n')}`;
           </button>
           <button className="btn secondary full" style={{ marginTop: 10 }} onClick={handleCopy} disabled={saving}>
             {copyLabel}
+          </button>
+          {sent && (
+            <div className="hint" style={{ marginTop: 12, color: 'var(--green)' }}>✓ Relatório registrado no sistema.</div>
+          )}
+          <button className="btn secondary full" style={{ marginTop: 10 }} onClick={onDone}>
+            Voltar para a agenda
           </button>
         </div>
       )}
