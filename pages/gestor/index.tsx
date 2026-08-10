@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
 import { useRequireAuth } from '@/lib/useSession';
 import TopHeader from '@/components/TopHeader';
 
@@ -11,12 +10,22 @@ export default function GestorHome() {
   const router = useRouter();
   const [promotores, setPromotores] = useState<Promotor[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+
+  // criar novo
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // gerenciar existente
+  const [manageId, setManageId] = useState<string | null>(null);
+  const [mName, setMName] = useState('');
+  const [mUsername, setMUsername] = useState('');
+  const [mPassword, setMPassword] = useState('');
+  const [mError, setMError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   function loadPromotores() {
     setLoadingList(true);
@@ -50,6 +59,52 @@ export default function GestorHome() {
     loadPromotores();
   }
 
+  function openManage(p: Promotor) {
+    setManageId(p.id);
+    setMName(p.name);
+    setMUsername(p.username);
+    setMPassword('');
+    setMError('');
+  }
+
+  function closeManage() {
+    setManageId(null);
+    setMError('');
+  }
+
+  async function handleSave(e: React.FormEvent, id: string) {
+    e.preventDefault();
+    setMError('');
+    setSaving(true);
+    const body: Record<string, string> = { name: mName, username: mUsername };
+    if (mPassword.trim()) body.password = mPassword.trim();
+    const res = await fetch(`/api/promotores/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    setSaving(false);
+    if (!res.ok) {
+      setMError(data.error || 'Não foi possível salvar');
+      return;
+    }
+    closeManage();
+    loadPromotores();
+  }
+
+  async function handleDelete(id: string, nome: string) {
+    if (!confirm(`Excluir o promotor "${nome}"? Essa ação não pode ser desfeita.`)) return;
+    const res = await fetch(`/api/promotores/${id}`, { method: 'DELETE' });
+    if (res.status === 204) {
+      closeManage();
+      loadPromotores();
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    setMError(data.error || 'Não foi possível excluir');
+  }
+
   if (loading || !session) return <div className="wrap">Carregando...</div>;
 
   return (
@@ -69,15 +124,51 @@ export default function GestorHome() {
         ) : (
           <div className="card-list">
             {promotores.map((p) => (
-              <Link href={`/gestor/${p.id}`} key={p.id} style={{ textDecoration: 'none' }}>
+              <div key={p.id}>
                 <div className="item-row">
-                  <div>
+                  <div
+                    style={{ cursor: 'pointer', flex: 1 }}
+                    onClick={() => router.push(`/gestor/${p.id}`)}
+                  >
                     <div className="item-title">{p.name}</div>
                     <div className="item-sub">@{p.username}</div>
                   </div>
-                  <span style={{ color: 'var(--text-dim)' }}>&rsaquo;</span>
+                  <button
+                    className="btn secondary"
+                    type="button"
+                    onClick={() => (manageId === p.id ? closeManage() : openManage(p))}
+                  >
+                    {manageId === p.id ? 'Fechar' : 'Gerenciar'}
+                  </button>
                 </div>
-              </Link>
+
+                {manageId === p.id && (
+                  <form onSubmit={(e) => handleSave(e, p.id)} style={{ padding: '8px 0 4px' }}>
+                    <label className="field">
+                      <span className="lbl">Nome completo</span>
+                      <input type="text" value={mName} onChange={(e) => setMName(e.target.value)} required />
+                    </label>
+                    <label className="field">
+                      <span className="lbl">Usuário (login)</span>
+                      <input type="text" value={mUsername} onChange={(e) => setMUsername(e.target.value)} required />
+                    </label>
+                    <label className="field">
+                      <span className="lbl">Nova senha (deixe em branco para manter a atual)</span>
+                      <input
+                        type="text"
+                        value={mPassword}
+                        onChange={(e) => setMPassword(e.target.value)}
+                        placeholder="Digite só se quiser trocar"
+                      />
+                    </label>
+                    {mError && <div className="error-msg">{mError}</div>}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button className="btn" type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
+                      <button className="btn secondary" type="button" onClick={() => handleDelete(p.id, p.name)}>Excluir</button>
+                    </div>
+                  </form>
+                )}
+              </div>
             ))}
           </div>
         )}
