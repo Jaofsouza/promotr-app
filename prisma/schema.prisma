@@ -1,0 +1,85 @@
+// Schema do banco de dados — Postgres em produção (Vercel + Neon/Supabase)
+// Rode `npx prisma migrate dev` localmente com um Postgres, ou
+// `npx prisma db push` direto no banco de produção antes do primeiro deploy.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PROMOTOR
+  GESTOR
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(PROMOTOR)
+  createdAt    DateTime @default(now())
+
+  reports  Report[]
+  agendaItems AgendaItem[]
+}
+
+// Catálogo de produtos e sabores — editável só pelo gestor, sem precisar
+// mexer no código toda vez que surge um sabor novo.
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  matName     String?  // como o produto aparece em "Material utilizado" (ex: "dose whey 100%")
+  category    String   // "DEGUSTACAO" | "VENDA" — se aparece no formulário de degustação, em vendas, ou ambos
+  suggestion  String?  // texto de sugestão de quantidade (ex: "3–4 doses")
+  defaultQty  Int      @default(2)
+  color       String   @default("#8b0000")
+  flavors     Flavor[]
+  createdAt   DateTime @default(now())
+}
+
+model Flavor {
+  id        String  @id @default(cuid())
+  name      String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+}
+
+// Um relatório de degustação gerado e salvo por um promotor.
+model Report {
+  id              String   @id @default(cuid())
+  promotor        User     @relation(fields: [promotorId], references: [id])
+  promotorId      String
+  local           String
+  data            DateTime
+  horaIni         String?
+  horaFim         String?
+  movimento       String?
+  publicoDia      String?
+  publicoAtingido String?
+  aceitacao       String?
+  horarioPico     String?
+  degustacao      Json     // lista de itens {produto, sabor, qty}
+  material        Json     // lista de itens {produto, sabor, qty}
+  vendas          Json     // lista de itens {produto, sabor, qty}
+  textoFinal      String   @db.Text // texto formatado exatamente como foi enviado ao WhatsApp
+  createdAt       DateTime @default(now())
+}
+
+// Agenda semanal — criada e editada só pelo gestor, o promotor só visualiza.
+model AgendaItem {
+  id         String   @id @default(cuid())
+  promotor   User     @relation(fields: [promotorId], references: [id])
+  promotorId String
+  data       DateTime
+  local      String
+  horaIni    String
+  horaFim    String
+  observacao String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

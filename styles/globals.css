@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --bg: #0d0e11;
+  --card: #14161d;
+  --card-2: #1c1f28;
+  --line: #2a2e3b;
+  --red: #8b0000;
+  --red-hover: #a81c24;
+  --green: #22c55e;
+  --text: #e5e5e7;
+  --text-dim: #94a3b8;
+  --danger: #ef4444;
+}
+*{ box-sizing: border-box; }
+html, body{ margin:0; padding:0; }
+body{
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, sans-serif;
+  min-height: 100vh;
+}
+a{ color: inherit; }
+.wrap{ max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+.wrap-wide{ max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+
+header.top{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--line);
+}
+header.top .brand{ display:flex; align-items:center; gap:10px; }
+header.top .brand-text{
+  font-family:'Oswald', sans-serif; font-weight:700; font-size: 18px;
+  letter-spacing: 0.03em; text-transform: uppercase;
+}
+header.top .who{ font-size: 13px; color: var(--text-dim); display:flex; align-items:center; gap:10px; }
+header.top button.linklike{
+  background:none; border:none; color: var(--text-dim); font-size: 13px; text-decoration: underline; cursor:pointer;
+}
+
+.tabs{ display:flex; gap:8px; margin-bottom: 18px; }
+.tab{
+  flex:1; text-align:center; padding: 10px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card); font-family:'Oswald', sans-serif; font-weight:600; letter-spacing:0.03em;
+  text-transform: uppercase; font-size: 13px; color: var(--text-dim); cursor:pointer;
+}
+.tab.active{ background: var(--red); border-color: var(--red); color:#fff; }
+
+.section{
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px; margin-bottom: 14px;
+}
+.section h2{
+  font-family:'Oswald', sans-serif; font-weight:600; font-size: 13.5px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: #f1f5f9; margin: 0 0 12px 0;
+}
+
+label.field{ display:block; margin-bottom: 12px; }
+label.field:last-child{ margin-bottom: 0; }
+label.field .lbl{ display:block; font-size: 12px; color: var(--text-dim); margin-bottom: 5px; }
+input[type=text], input[type=password], input[type=date], input[type=time], input[type=number], select, textarea{
+  width: 100%; background: var(--card-2); border: 1px solid var(--line); color: var(--text);
+  font-family: 'Inter', sans-serif; font-size: 15px; padding: 10px 11px; border-radius: 9px; outline: none;
+}
+input:focus, select:focus, textarea:focus{ border-color: var(--red); }
+textarea{ resize: vertical; min-height: 70px; }
+
+.row2{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+.btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  background: var(--red); color:#fff; border:none; font-family:'Oswald', sans-serif; font-weight:600;
+  letter-spacing:0.04em; text-transform:uppercase; font-size: 14px; padding: 12px 18px; border-radius: 10px;
+  cursor:pointer;
+}
+.btn:hover{ background: var(--red-hover); }
+.btn.secondary{ background: var(--card-2); color: var(--text); border: 1px solid var(--line); }
+.btn.full{ width: 100%; }
+.btn.small{ padding: 7px 12px; font-size: 12px; }
+.btn:disabled{ opacity: 0.5; cursor:not-allowed; }
+
+.card-list .item-row{
+  display:flex; align-items:center; justify-content:space-between; gap: 10px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+  background: var(--card-2); cursor: pointer;
+}
+.card-list .item-row:hover{ border-color: var(--red); }
+.card-list .item-title{ font-size: 14.5px; font-weight: 600; }
+.card-list .item-sub{ font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+table.data-table{ width:100%; border-collapse: collapse; font-size: 13px; }
+table.data-table th{
+  text-align:left; font-family:'Oswald', sans-serif; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
+  font-size: 11px; color: var(--text-dim); padding: 8px 10px; border-bottom: 1px solid var(--line);
+}
+table.data-table td{ padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.data-table tr:last-child td{ border-bottom: none; }
+
+.pill{
+  display:inline-block; font-family:'IBM Plex Mono', monospace; font-size: 11px;
+  padding: 3px 8px; border-radius: 20px; border: 1px solid var(--line); color: var(--text-dim);
+}
+
+.hint{ font-size: 11.5px; color: var(--text-dim); margin-top: 6px; }
+.error-msg{ color: var(--danger); font-size: 13px; margin-top: 8px; }
+
+.login-wrap{
+  min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 20px;
+}
+.login-card{
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px 24px;
+  width: 100%; max-width: 360px;
+}
+.login-card h1{
+  font-family:'Oswald', sans-serif; font-weight:700; font-size: 20px; text-transform:uppercase;
+  letter-spacing: 0.03em; margin: 0 0 4px;
+}
+.login-card p.sub{ color: var(--text-dim); font-size: 13px; margin: 0 0 20px; }
+
+.receipt{
+  background: #141416; color: #e5e5e7; border: 1px solid var(--line); border-radius: 10px;
+  padding: 18px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.day-col{ min-width: 150px; }
+.week-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.day-card{ background: var(--card-2); border:1px solid var(--line); border-radius: 10px; padding: 10px; }
+.day-card .day-label{
+  font-family:'Oswald', sans-serif; font-weight:600; font-size: 11px; text-transform:uppercase;
+  color: var(--text-dim); margin-bottom: 8px; letter-spacing: 0.05em;
+}
+.day-card .slot{
+  background: var(--bg); border-radius: 8px; padding: 8px; margin-bottom: 6px; font-size: 12.5px;
+}
+.day-card .slot:last-child{ margin-bottom: 0; }
+.day-card .slot .slot-time{ font-family:'IBM Plex Mono', monospace; color: var(--red); font-weight:600; }
+.day-card .empty{ color: var(--text-dim); font-size: 12px; font-style: italic; }
