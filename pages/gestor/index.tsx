@@ -113,6 +113,7 @@ export default function GestorHome() {
       <div className="tabs">
         <div className="tab active">Promotores</div>
         <div className="tab" onClick={() => router.push('/gestor/produtos')}>Catálogo de produtos</div>
+        <div className="tab" onClick={() => router.push('/gestor/agenda')}>Agenda</div>
       </div>
 
       <div className="section">
