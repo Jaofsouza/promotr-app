@@ -2,7 +2,18 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-troque-em-producao';
+// Em produção, exige a variável de ambiente de verdade — nunca assina sessões
+// com um segredo padrão previsível. Em desenvolvimento local, cai num valor
+// fixo só pra não travar quem está rodando sem configurar nada ainda.
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === 'production'
+    ? (() => {
+        throw new Error(
+          'JWT_SECRET não está definido. Configure essa variável de ambiente antes de rodar em produção.'
+        );
+      })()
+    : 'dev-secret-local-apenas');
 const COOKIE_NAME = 'promotor_session';
 const SESSION_DAYS = 30;
 
