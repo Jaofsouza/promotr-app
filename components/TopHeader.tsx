@@ -20,9 +20,6 @@ export default function TopHeader({ session, title }: { session: ClientSession; 
       </div>
       <div className="who">
         <span>{session.name}</span>
-        {session.role === 'GESTOR' && (
-          <button className="linklike" onClick={() => router.push('/gestor/senha')}>trocar senha</button>
-        )}
         <button className="linklike" onClick={logout}>sair</button>
       </div>
     </header>
