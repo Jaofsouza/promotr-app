@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useRequireAuth } from '@/lib/useSession';
 import TopHeader from '@/components/TopHeader';
+import BrandFooter from '@/components/BrandFooter';
 
 type Flavor = { id: string; name: string };
 type Product = {
@@ -140,6 +141,7 @@ export default function ProdutosAdmin() {
           </form>
         )}
       </div>
+      <BrandFooter />
     </div>
   );
 }

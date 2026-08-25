@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useRequireAuth } from '@/lib/useSession';
 import TopHeader from '@/components/TopHeader';
+import BrandFooter from '@/components/BrandFooter';
 
 type Promotor = { id: string; name: string; username: string };
 type ParsedSlot = { local: string; horaIni: string; horaFim: string };
@@ -291,6 +292,7 @@ export default function GestorAgenda() {
           </div>
         </div>
       )}
+      <BrandFooter />
     </div>
   );
 }

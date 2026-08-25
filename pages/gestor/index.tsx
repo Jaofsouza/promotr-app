@@ -1,15 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useRequireAuth } from '@/lib/useSession';
 import TopHeader from '@/components/TopHeader';
+import BrandFooter from '@/components/BrandFooter';
 
 type Promotor = { id: string; name: string; username: string; createdAt: string };
+type AgendaHojeItem = { id: string; promotorId: string; data: string; local: string; horaIni: string; horaFim: string };
+
+function formatHora(h: string) {
+  return h?.slice(0, 5) || h;
+}
 
 export default function GestorHome() {
   const { session, loading } = useRequireAuth('GESTOR');
   const router = useRouter();
   const [promotores, setPromotores] = useState<Promotor[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [agendaHoje, setAgendaHoje] = useState<AgendaHojeItem[] | null>(null);
 
   // criar novo
   const [showNew, setShowNew] = useState(false);
@@ -39,6 +46,27 @@ export default function GestorHome() {
     if (session) loadPromotores();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const end = new Date(); end.setHours(23, 59, 59, 999);
+    fetch(`/api/agenda?from=${start.toISOString()}&to=${end.toISOString()}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((items) => setAgendaHoje(Array.isArray(items) ? items : []))
+      .catch(() => setAgendaHoje([]));
+  }, [session]);
+
+  const promotorNomeById = useMemo(() => {
+    const map: Record<string, string> = {};
+    promotores.forEach((p) => { map[p.id] = p.name; });
+    return map;
+  }, [promotores]);
+
+  const promotoresEmCampo = useMemo(() => {
+    if (!agendaHoje) return 0;
+    return new Set(agendaHoje.map((a) => a.promotorId)).size;
+  }, [agendaHoje]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -114,6 +142,42 @@ export default function GestorHome() {
         <div className="tab active">Promotores</div>
         <div className="tab" onClick={() => router.push('/gestor/produtos')}>Catálogo de produtos</div>
         <div className="tab" onClick={() => router.push('/gestor/agenda')}>Agenda</div>
+      </div>
+
+      <div className="stat-row">
+        <div className="stat-tile">
+          <div className="lbl">Degustações hoje</div>
+          <div className="val">{agendaHoje ? agendaHoje.length : '—'}</div>
+          <div className="sub">{agendaHoje && agendaHoje.length === 0 ? 'nenhuma agenda lançada ainda' : 'itens na agenda de hoje'}</div>
+        </div>
+        <div className="stat-tile">
+          <div className="lbl">Promotores em campo</div>
+          <div className="val">{agendaHoje ? promotoresEmCampo : '—'}</div>
+          <div className="sub">de {promotores.length} cadastrado{promotores.length === 1 ? '' : 's'}</div>
+        </div>
+      </div>
+
+      <div className="section">
+        <h2>Agenda de hoje</h2>
+        {!agendaHoje ? (
+          <div className="hint">Carregando...</div>
+        ) : agendaHoje.length === 0 ? (
+          <div className="hint">Nenhuma degustação agendada para hoje.</div>
+        ) : (
+          <div className="card-list">
+            {agendaHoje
+              .slice()
+              .sort((a, b) => a.horaIni.localeCompare(b.horaIni))
+              .map((item) => (
+                <div className="item-row" key={item.id}>
+                  <div>
+                    <div className="item-title">{formatHora(item.horaIni)} · {item.local}</div>
+                    <div className="item-sub">{promotorNomeById[item.promotorId] || 'Promotor'}</div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
 
       <div className="section">
@@ -201,6 +265,7 @@ export default function GestorHome() {
           </form>
         )}
       </div>
+      <BrandFooter />
     </div>
   );
 }
