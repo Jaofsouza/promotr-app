@@ -14,7 +14,7 @@ export default function TopHeader({ session, title }: { session: ClientSession; 
       <div className="brand">
         <img src="/topway-icon.png" alt="Topway Nutrition" className="badge" />
         <div className="brand-text-group">
-          <span className="brand-text">Promotr</span>
+          <span className="brand-text">Promotor</span>
           <span className="brand-sub">{title}</span>
         </div>
       </div>
