@@ -1,105 +1,28 @@
-import { useState } from 'react';
-import { useRouter } from 'next/router';
-import { useRequireAuth } from '@/lib/useSession';
-import TopHeader from '@/components/TopHeader';
-import BrandFooter from '@/components/BrandFooter';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { prisma } from '@/lib/prisma';
+import { requireAuth, hashPassword, verifyPassword } from '@/lib/auth';
 
-export default function TrocarSenha() {
-  const { session, loading } = useRequireAuth('GESTOR');
-  const router = useRouter();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const session = requireAuth(req, res, 'GESTOR');
+  if (!session) return;
+  if (req.method !== 'POST') return res.status(405).end();
 
-  const [senhaAtual, setSenhaAtual] = useState('');
-  const [novaSenha, setNovaSenha] = useState('');
-  const [confirmar, setConfirmar] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    setSuccess(false);
-
-    if (novaSenha.length < 4) {
-      setError('A nova senha precisa ter pelo menos 4 caracteres');
-      return;
-    }
-    if (novaSenha !== confirmar) {
-      setError('A confirmação não bate com a nova senha');
-      return;
-    }
-
-    setSaving(true);
-    const res = await fetch('/api/auth/senha', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senhaAtual, novaSenha }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setSaving(false);
-
-    if (!res.ok) {
-      setError(data.error || 'Não foi possível trocar a senha');
-      return;
-    }
-
-    setSenhaAtual('');
-    setNovaSenha('');
-    setConfirmar('');
-    setSuccess(true);
+  const { senhaAtual, novaSenha } = req.body || {};
+  if (!senhaAtual || !novaSenha) {
+    return res.status(400).json({ error: 'Preencha a senha atual e a nova senha' });
+  }
+  if (String(novaSenha).length < 4) {
+    return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 4 caracteres' });
   }
 
-  if (loading || !session) return <div className="wrap">Carregando...</div>;
+  const user = await prisma.user.findUnique({ where: { id: session.userId } });
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-  return (
-    <div className="wrap">
-      <TopHeader session={session} title="Trocar senha" />
-      <button className="btn secondary small" onClick={() => router.push('/gestor')} style={{ marginBottom: 14 }}>
-        &larr; voltar
-      </button>
+  const ok = await verifyPassword(String(senhaAtual), user.passwordHash);
+  if (!ok) return res.status(401).json({ error: 'Senha atual incorreta' });
 
-      <div className="section">
-        <h2>Trocar senha</h2>
-        <form onSubmit={handleSubmit}>
-          <label className="field">
-            <span className="lbl">Senha atual</span>
-            <input
-              type="password"
-              value={senhaAtual}
-              onChange={(e) => setSenhaAtual(e.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            <span className="lbl">Nova senha</span>
-            <input
-              type="password"
-              value={novaSenha}
-              onChange={(e) => setNovaSenha(e.target.value)}
-              required
-            />
-          </label>
-          <label className="field">
-            <span className="lbl">Confirmar nova senha</span>
-            <input
-              type="password"
-              value={confirmar}
-              onChange={(e) => setConfirmar(e.target.value)}
-              required
-            />
-          </label>
-          {error && <div className="error-msg">{error}</div>}
-          {success && (
-            <div className="hint" style={{ color: 'var(--green)', marginTop: 8 }}>
-              ✓ Senha alterada com sucesso.
-            </div>
-          )}
-          <button className="btn full" type="submit" disabled={saving} style={{ marginTop: 10 }}>
-            {saving ? 'Salvando...' : 'Salvar nova senha'}
-          </button>
-        </form>
-      </div>
-      <BrandFooter />
-    </div>
-  );
+  const passwordHash = await hashPassword(String(novaSenha));
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+
+  return res.status(200).json({ ok: true });
 }
