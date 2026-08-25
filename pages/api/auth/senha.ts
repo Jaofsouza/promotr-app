@@ -1,11 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, hashPassword, verifyPassword } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = requireAuth(req, res, 'GESTOR');
   if (!session) return;
   if (req.method !== 'POST') return res.status(405).end();
+
+  if (!checkRateLimit(`senha:${session.userId}`, 10, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.' });
+  }
 
   const { senhaAtual, novaSenha } = req.body || {};
   if (!senhaAtual || !novaSenha) {
