@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import BrandFooter from '@/components/BrandFooter';
 
 export default function Login() {
   const router = useRouter();
@@ -34,8 +35,12 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <h1>Degustações</h1>
-        <p className="sub">Entre com seu usuário e senha</p>
+        <div className="login-brand">
+          <img src="/topway-icon.png" alt="Topway Nutrition" className="badge" />
+          <img src="/topway-wordmark-white.png" alt="Topway Nutrition" className="wordmark" />
+        </div>
+        <h1>Bem-vindo de volta</h1>
+        <p className="sub">Entre para ver sua agenda de degustações de hoje.</p>
         <form onSubmit={handleSubmit}>
           <label className="field">
             <span className="lbl">Usuário</span>
@@ -63,6 +68,7 @@ export default function Login() {
           </button>
         </form>
       </div>
+      <BrandFooter />
     </div>
   );
 }

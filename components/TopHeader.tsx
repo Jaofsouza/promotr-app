@@ -12,7 +12,11 @@ export default function TopHeader({ session, title }: { session: ClientSession; 
   return (
     <header className="top">
       <div className="brand">
-        <span className="brand-text">{title}</span>
+        <img src="/topway-icon.png" alt="Topway Nutrition" className="badge" />
+        <div className="brand-text-group">
+          <span className="brand-text">Promotr</span>
+          <span className="brand-sub">{title}</span>
+        </div>
       </div>
       <div className="who">
         <span>{session.name}</span>

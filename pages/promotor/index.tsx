@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRequireAuth } from '@/lib/useSession';
 import TopHeader from '@/components/TopHeader';
+import BrandFooter from '@/components/BrandFooter';
 
 type Flavor = { id: string; name: string };
 type Product = {
@@ -55,6 +56,7 @@ export default function PromotorHome() {
       ) : (
         <AgendaList onPick={(slot) => setSelected(slot)} />
       )}
+      <BrandFooter />
     </div>
   );
 }

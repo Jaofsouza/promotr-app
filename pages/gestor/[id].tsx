@@ -2,6 +2,7 @@ import { useEffect, useState, Fragment } from 'react';
 import { useRouter } from 'next/router';
 import { useRequireAuth } from '@/lib/useSession';
 import TopHeader from '@/components/TopHeader';
+import BrandFooter from '@/components/BrandFooter';
 
 type Promotor = { id: string; name: string; username: string };
 type Report = {
@@ -211,6 +212,7 @@ export default function PromotorProfile() {
           )}
         </div>
       )}
+      <BrandFooter />
     </div>
   );
 }
