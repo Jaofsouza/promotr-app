@@ -20,6 +20,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!name || !username || !password) {
       return res.status(400).json({ error: 'Nome, usuário e senha são obrigatórios' });
     }
+    if (String(password).length < 4) {
+      return res.status(400).json({ error: 'A senha precisa ter pelo menos 4 caracteres' });
+    }
     const existing = await prisma.user.findUnique({ where: { username: String(username).toLowerCase().trim() } });
     if (existing) return res.status(409).json({ error: 'Já existe um usuário com esse nome de login' });
 
