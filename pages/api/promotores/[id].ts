@@ -14,14 +14,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { id },
       select: { id: true, name: true, username: true, role: true, createdAt: true },
     });
-    if (!user) return res.status(404).json({ error: 'Não encontrado' });
+    if (!user || user.role !== 'PROMOTOR') return res.status(404).json({ error: 'Não encontrado' });
     return res.status(200).json(user);
   }
 
   // Editar nome/usuário e/ou resetar a senha
   if (req.method === 'PATCH') {
     const alvo = await prisma.user.findUnique({ where: { id } });
-    if (!alvo) return res.status(404).json({ error: 'Não encontrado' });
+    if (!alvo || alvo.role !== 'PROMOTOR') return res.status(404).json({ error: 'Não encontrado' });
 
     const { name, username, password } = req.body || {};
     const data: { name?: string; username?: string; passwordHash?: string } = {};
